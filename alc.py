@@ -94,8 +94,8 @@ def traspuesta(A):
     f,c = A.shape
     T = np.zeros((c,f))
     i = 0
-    while i < f:
-        T[i:,:] = A[:,i]
+    while i < c:
+        T[i,:] = A[:,i]
         i+=1
     return T
 
@@ -282,7 +282,61 @@ def calculaCholesky(A,atol=1e-10): #mision cumplida
     R = multiplicarMatrices(L,D)
     return R
 
+def QR_con_GS(A,tol=1e-12,retorna_nops=False):
+    if len(A) != len(A[0]):
+        return None
 
+    Q = np.zeros((len(A), len(A)))
+    R = np.zeros((len(A), len(A)))
+    A_tras = traspuesta(A)
+    
+    no_descartados = []
+    for j in range(len(A)):
+        qj = A_tras[j].copy()
+        for k in no_descartados:
+            R[k][j] = producto_interno(Q[k],qj)
+            qj -= R[k][j]*Q[k]
+        R[j][j] = norma(qj, 2)   
+        if norma(qj, 2) > tol:
+            Q[j] = qj/R[j][j]
+            no_descartados.append(j)
+    
+    Q_mono = traspuesta(Q[no_descartados])
+    R_mono = R[:len(Q_mono[0])]
+    return Q_mono, R_mono
+    
+
+def QR_con_HH(A,tol=1e-12,extras=False):
+    if len(A) < len(A[0]):
+        return None
+    
+    R = A.copy().astype(float)
+    Q = np.eye(len(A))
+    for k in range(len(A)):
+        x = np.zeros(len(A) - k)
+        for f in range(len(A) - k):
+            x[f] = R[f + k][k]
+        a = -x[0]*norma(x, 2)/abs(x[0])
+        u = np.array(x.copy())
+        u[0] -= a 
+        if norma(u, 2) > tol:
+            u = u/norma(u, 2)
+            Hk = np.eye(len(A)-k)
+            Hk -= 2*multiplicarMatrices(u.reshape((len(u),1)), traspuesta(u.reshape((len(u),1))))
+            Hk_mono = np.eye(len(A))
+            Hk_mono[k:,k:] = Hk
+            R = multiplicarMatrices(Hk_mono, R)
+            Q = multiplicarMatrices(Q, traspuesta(Hk_mono))
+    return Q, R
+
+def calculaQR(A,metodo='RH',tol=1e-12):
+    if metodo == 'RH':
+        Q, R = QR_con_HH(A, tol)
+    elif metodo == 'GS':
+        Q, R = QR_con_GS(A,tol)
+    else:
+        return None
+    return Q, R
 
 
 def multiplicarAx(A,x):
