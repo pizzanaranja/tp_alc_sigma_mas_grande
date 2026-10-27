@@ -1,5 +1,142 @@
 
 import numpy as np
+#agrego los modulos
+def error(x,y):
+    return abs(np.float64(x) - np.float64(y))
+'''Recibe dos numeros x e y, y calcula el error de aproximar x usando y en float64'''
+
+def error_relativo(x,y):
+    return abs(error(x,y)) / abs(np.float64(x))
+'''Recibe dos numeros x e y, y calcula el error relativo de aproximar x usando y en float64'''
+    
+def matricesIguales(A, B):
+    iguales = True
+    f,c = A.shape
+    if len(A) != len(B) or len(A[0]) != len(B[0]):
+        iguales = False
+    else:
+        i = 0
+        while iguales and i < f:
+            for j in range(c):
+                iguales = iguales and np.isclose(A[i][j], B[i][j])
+            i += 1
+    return iguales
+
+def rota(theta):
+    a = np.cos(theta)
+    b = np.sin(theta)
+    A = np.array([[a,-b],[b,a]])
+    return A
+
+def escala(s):
+    A = np.zeros((len(s),len(s)))
+    for i in range(len(s)):
+        A[i][i] = s[i]
+    return A
+
+def rota_y_escala(theta,s):
+    T2 = escala(s)
+    T1 = rota(theta)
+    return T2 @ T1
+
+def afin(theta,s,b):
+    T2 = escala(s)
+    T1 = rota(theta)
+    A = T2@T1
+    B = np.zeros((3,3))
+    for i in range(2):
+        B[i][:2] = A[i]
+        B[i][2] = b[i]
+    B[2][2] = 1
+    return B
+
+def trans_afin(v,theta,s,b):
+    A = afin(theta,s,b)
+    v1 = np.array([v[0],v[1],1])
+    w = A@v1
+    return w[:2]
+
+def norma(x,p):
+    norm = 0
+    if p == "inf":
+        for elem in x:
+            if abs(elem) > norm:
+                norm = abs(elem)
+    else:
+        suma = 0
+        for elem in x:
+            suma += abs(elem)**p
+            norm = suma**(1/p)
+    return norm
+
+def normaliza(X,p):
+    normas = []
+    for i in range(len(X)):
+        vector = X[i].astype(float).copy()
+        for j in range(len(vector)):
+            vector[j] = vector[j]/norma(X[i],p)
+        normas.append(vector)
+    return normas
+
+def normaMatMC(A,q,p,Np):
+    vectores = np.array([np.random.uniform(-1,1,size=len(A[0])) for n in range(Np)])
+    normalizados = normaliza(vectores,p)
+    max = []
+    norm = 0
+    for vector in normalizados:
+        norma_matriz = norma(A@vector,q)
+        if norma_matriz > norm:
+            norm = norma_matriz
+            max = vector
+    return norm,max
+
+def traspuesta(A):
+    f,c = A.shape
+    T = np.zeros((c,f))
+    i = 0
+    while i < f:
+        T[i:,:] = A[:,i]
+        i+=1
+    return T
+
+def normaExacta(A,p=[1,"inf"]):
+    if isinstance(p,int):
+        if p == 1:
+            norm = 0
+            for j in range(len(A[0])):
+                norma_columna = 0
+                for i in range(len(A)):
+                    norma_columna += abs(A[i][j])
+                if norma_columna > norm:
+                    norm = norma_columna
+        else:
+            norm = None
+    elif isinstance(p,str):
+        if p == "inf":
+            norm = 0
+            for fila in A:
+                norma_fila = norma(fila,1)
+                if norma_fila > norm:
+                    norm = norma_fila
+        else:
+            norm = None
+    else:
+        if p[0] == 1:
+            norm = [normaExacta(A,1),normaExacta(A,"inf")]
+        else:
+            norm = None
+    return norm
+
+def condMC(A,p,Np):
+    A_inversa = np.linalg.inv(A)
+    nro_cond = normaMatMC(A,p,p,Np)[0]*normaMatMC(A_inversa,p,p,Np)[0]
+    return nro_cond
+
+def condExacta(A,p):
+    A_inversa = np.linalg.inv(A)
+    nro_cond = normaExacta(A,p)*normaExacta(A_inversa,p)
+    return nro_cond
+
 def multiplicarMatrices(A,B):
     res = np.zeros((len(A),len(B[0])))
     for f in range(len(A)):
@@ -11,23 +148,103 @@ def multiplicarMatrices(A,B):
 
     return res
 
-def multiplicarAx(A,x):
-    Ax = np.zeros(len(x))
-    for i in range(len(A)):
-        sum = 0
-        for j in range(len(x)):
-            sum += A[i][j]*x[j]
-        Ax[i] = sum
-    return Ax
+def calculaLU(A):
+    cant_op = 0
 
-def traspuesta(A):
-    f,c = A.shape
-    T = np.zeros((c,f))
-    i = 0
-    while i < c:
-        T[i,:] = A[:,i]
-        i+=1
-    return T
+    if A is None:
+        return None, None, cant_op
+    m, n = A.shape
+    Ac = A.copy().astype(float)
+    
+    if m!=n:
+        return None,None,cant_op
+
+    for col in range(n):
+        pivo = Ac[col][col]
+        if abs(pivo) < 1e-15:
+            return None, None, 0
+
+        for fil in range(col+1,m):
+            if Ac[fil][col] != 0:
+                Ac[fil][col] = Ac[fil][col]/pivo
+                cant_op +=1
+
+                Ac[fil][col+1:] -= Ac[col][col+1:]*(Ac[fil][col])
+
+        cant_op += 2*((n - col-1)**2)
+
+    L = np.eye(n)
+    U = np.zeros((m,n))
+    for f in range(m):
+        for c in range(n):
+            if f > c:
+                L[f][c] = Ac[f][c]
+            else:
+                U[f][c] = Ac[f][c]
+    
+    return L, U, cant_op
+
+
+def es_inferior(A):
+    inferior = True
+    for i in range(len(A)):
+        for j in range(i+1,len(A[0])):
+            inferior = inferior and A[i][j] == 0
+    return inferior
+
+
+def res_tri(L,b,inferior=True):
+    x = np.zeros(len(L))
+    if not inferior:
+        for i in range(len(L)-1,-1,-1):
+            sum = 0
+            for j in range(len(L)-1,i,-1):
+                sum += L[i][j]*x[j]
+            x[i] = (b[i] - sum)/L[i][i]
+        return x
+    for i in range(len(L)):
+        sum = 0
+        for j in range(i):
+            sum += L[i][j]*x[j]
+        x[i] = (b[i] - sum)/L[i][i]
+        
+    return x
+
+
+def inversa(A):
+    L, U, nops = calculaLU(A)
+    if L is None or U is None:
+        return None
+    L_inv = np.eye(len(L))
+    for i in range(len(L[0])):
+        piv = L[i][i]
+        for j in range(i+1,len(L)):
+            l = L[j][i]/piv
+            L[j][:i+1] -= L[i][:i+1]*l
+            L_inv[j][:i+1] -= L_inv[i][:i+1]*l
+
+    U_inv = np.eye(len(U))
+    for i in range(len(U[0])-1,-1,-1):
+        if U[i][i] != 1:
+            U_inv[i] = U_inv[i]/U[i][i]
+            U[i] = U[i]/U[i][i]
+        piv = U[i][i]
+        for j in range(i):
+            u = U[j][i]/piv
+            U[j][i:] -= U[i][i:]*u
+            U_inv[j][i:] -= U_inv[i][i:]*u
+
+    return multiplicarMatrices(U_inv,L_inv)
+
+def calculaLDV(A): #mision cumplida
+    L,U,nops = calculaLU(A)
+    if L is None or U is None:
+        return None
+    U = traspuesta(U)
+    V,D, nops = calculaLU(U)
+    V = traspuesta(V)
+
+    return L,D,V
 
 def esSimetrica(A,error):
     f,c = A.shape
@@ -41,6 +258,42 @@ def esSimetrica(A,error):
             i += 1
         
         return simetrica
+
+def esSDP(A, atol=1e-8):
+    if not esSimetrica(A,atol):
+        return False
+    if calculaLDV(A) is None:
+        return False
+    L,D,V = calculaLDV(A)
+    diag_pos = True
+    for i in range(len(D)):
+        diag_pos = diag_pos and D[i][i] > 0
+    return diag_pos
+
+
+def calculaCholesky(A,atol=1e-10): #mision cumplida
+    if not esSDP(A,atol):
+        return None
+    L,D,V = calculaLDV(A)
+
+    for i in range(len(D)):
+        D[i][i] = np.sqrt(D[i][i])
+
+    R = multiplicarMatrices(L,D)
+    return R
+
+
+
+
+def multiplicarAx(A,x):
+    Ax = np.zeros(len(x))
+    for i in range(len(A)):
+        sum = 0
+        for j in range(len(x)):
+            sum += A[i][j]*x[j]
+        Ax[i] = sum
+    return Ax
+
 
 def norma(x,p):
     norm = 0
