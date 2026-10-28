@@ -37,7 +37,7 @@ def escala(s):
 def rota_y_escala(theta,s):
     T2 = escala(s)
     T1 = rota(theta)
-    return T2 @ T1
+    return multiplicarMatrices(T2, T1)
 
 def afin(theta,s,b):
     T2 = escala(s)
@@ -184,14 +184,12 @@ def calculaLU(A):
     
     return L, U, cant_op
 
-
 def es_inferior(A):
     inferior = True
     for i in range(len(A)):
         for j in range(i+1,len(A[0])):
             inferior = inferior and A[i][j] == 0
     return inferior
-
 
 def res_tri(L,b,inferior=True):
     x = np.zeros(len(L))
@@ -209,7 +207,6 @@ def res_tri(L,b,inferior=True):
         x[i] = (b[i] - sum)/L[i][i]
         
     return x
-
 
 def inversa(A):
     L, U, nops = calculaLU(A)
@@ -236,7 +233,7 @@ def inversa(A):
 
     return multiplicarMatrices(U_inv,L_inv)
 
-def calculaLDV(A): #mision cumplida
+def calculaLDV(A):
     L,U,nops = calculaLU(A)
     if L is None or U is None:
         return None
@@ -246,7 +243,7 @@ def calculaLDV(A): #mision cumplida
 
     return L,D,V
 
-def esSimetrica(A,error):
+def esSimetrica(A,tol=1e-10):
     f,c = A.shape
     if f == c:
         T = traspuesta(A)
@@ -254,12 +251,13 @@ def esSimetrica(A,error):
         i = 0
         while simetrica and i < f:
             for j in range(c):
-                simetrica = np.isclose(A[i,j], T[i,j],atol=error)
+                simetrica = abs(A[i,j] - T[i,j]) < tol
             i += 1
-        
-        return simetrica
+    else:
+        simetrica = False
+    return simetrica
 
-def esSDP(A, atol=1e-8):
+def esSDP(A, atol=1e-5):
     if not esSimetrica(A,atol):
         return False
     if calculaLDV(A) is None:
@@ -269,7 +267,6 @@ def esSDP(A, atol=1e-8):
     for i in range(len(D)):
         diag_pos = diag_pos and D[i][i] > 0
     return diag_pos
-
 
 def calculaCholesky(A,atol=1e-10): #mision cumplida
     if not esSDP(A,atol):
@@ -284,7 +281,7 @@ def calculaCholesky(A,atol=1e-10): #mision cumplida
 
 def QR_con_GS(A,tol=1e-12,retorna_nops=False):
     if len(A) != len(A[0]):
-        return None
+        return None, None
 
     Q = np.zeros((len(A), len(A)))
     R = np.zeros((len(A), len(A)))
@@ -302,13 +299,12 @@ def QR_con_GS(A,tol=1e-12,retorna_nops=False):
             no_descartados.append(j)
     
     Q_mono = traspuesta(Q[no_descartados])
-    R_mono = R[:len(Q_mono[0])]
+    R_mono = R[no_descartados,:]
     return Q_mono, R_mono
-    
 
 def QR_con_HH(A,tol=1e-12,extras=False):
     if len(A) < len(A[0]):
-        return None
+        return None, None
     
     R = A.copy().astype(float)
     Q = np.eye(len(A))
@@ -335,9 +331,8 @@ def calculaQR(A,metodo='RH',tol=1e-12):
     elif metodo == 'GS':
         Q, R = QR_con_GS(A,tol)
     else:
-        return None
+        return None, None
     return Q, R
-
 
 def multiplicarAx(A,x):
     Ax = np.zeros(len(x))
@@ -348,20 +343,6 @@ def multiplicarAx(A,x):
         Ax[i] = sum
     return Ax
 
-
-def norma(x,p):
-    norm = 0
-    if p == "inf":
-        for elem in x:
-            if abs(elem) > norm:
-                norm = abs(elem)
-    else:
-        suma = 0
-        for elem in x:
-            suma += abs(elem)**p
-            norm = suma**(1/p)
-    return norm
-
 def producto_interno(x, y):
     if len(x) != len(y):
         return None
@@ -370,7 +351,6 @@ def producto_interno(x, y):
         prod += x[i]*y[i]
     return prod
 
-#### EJERCICIOS
 def f_A(A, v, k):
     w = v.copy()
     for i in range(k):
@@ -383,7 +363,7 @@ def metpot2k(A,tol=1e-15,K=1000):
     v = np.random.randn(len(A))
     v_m = f_A(A,v,2)
     e = producto_interno(v_m, v)
-    k = 0
+    k = 1
     while abs(e - 1)> tol and k < K:
         v = v_m
         v_m = f_A(A,v,2)
@@ -418,3 +398,49 @@ def diagRH(A,tol=1e-15,K=1e5):
         S1[1:, 1:] = S_mon
         S = multiplicarMatrices(H, S1)    
     return S, D
+
+'''
+#con este test deberia ser none porque te dicen que GS esta definido solo para cuadradas
+A = np.array([[1.0, 2.0, 0.0],[2.0, 1.0, 1.0],[0.0, 1.0, 2.0],[1.0, 0.0, 1.0],[3.0, 1.0, 0.0]])
+Q, R = calculaQR(A, metodo='GS')
+if Q is not None:
+   print('Q ok')
+else:
+   print('Problema con Q, da None')
+if R is not None:
+   print('R ok')
+else:
+   print('Problema con R, da None')
+if R.shape == (2, 3):
+   print('R tiene forma (2, 3)')
+else:
+   print('R deberia tener forma (2, 3) y tiene forma ' + str(R.shape) + '')
+if Q.shape == (3, 2):
+   print('Q tiene forma (3, 2)')
+else:
+   print('Q deberia tener forma (3, 2) y tiene forma ' + str(Q.shape) + '')
+triangular = True
+for i in range(R.shape[0]):
+   for j in range(min(i, R.shape[1])):
+      if abs(R[i, j]) >= 1e-4:
+         triangular = False
+if triangular:
+   print('R es triangular superior')
+else:
+   print('R no es triangular superior')
+reconstructed = Q @ R
+if np.allclose(reconstructed, A, atol=1e-3):
+    print('Q@R reconstruye A')
+else:
+   print('Q@R no reconstruye A')
+QtQ = traspuesta(Q) @ Q
+if np.allclose(QtQ, np.eye(Q.shape[1]), atol=1e-5):
+   print('QtQ es la identidad')
+else:
+   print('QtQ no da identidad')
+
+print(Q@R)
+print(Q)
+print(R)
+print(A)
+'''
