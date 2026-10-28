@@ -251,7 +251,7 @@ def esSimetrica(A,tol=1e-10):
         i = 0
         while simetrica and i < f:
             for j in range(c):
-                simetrica = abs(A[i,j] - T[i,j]) < tol
+                simetrica = simetrica and abs(A[i,j] - T[i,j]) < tol
             i += 1
     else:
         simetrica = False
@@ -363,7 +363,7 @@ def metpot2k(A,tol=1e-15,K=1000):
     v = np.random.randn(len(A))
     v_m = f_A(A,v,2)
     e = producto_interno(v_m, v)
-    k = 1
+    k = 1 #preguntar criterio
     while abs(e - 1)> tol and k < K:
         v = v_m
         v_m = f_A(A,v,2)
@@ -374,16 +374,21 @@ def metpot2k(A,tol=1e-15,K=1000):
     error = e - 1
     return v_m, lamda, k
 
-def diagRH(A,tol=1e-15,K=1e5):
+
+def diagRH(A,tol=1e-15,K=1000):
     if not esSimetrica(A, tol):
-        return None
-    v, lamda, error = metpot2k(A, tol, K)
+        return None, None
+    v, lamda, k = metpot2k(A, tol, K)
     if lamda<tol:
         return np.zeros((len(A),len(A))), np.zeros((len(A),len(A)))
     I = np.eye(len(A))
     u = I[0].copy()
     u -= v
-    H = I - (2/norma(u,2)**2)*multiplicarMatrices(u.reshape((len(u),1)), traspuesta(u.reshape((len(u),1))))
+    norma_u = norma(u,2)
+    if norma_u<tol:
+        H = I
+    else:
+        H = I - (2/norma_u**2)*multiplicarMatrices(u.reshape((len(u),1)), traspuesta(u.reshape((len(u),1))))
     if len(A) == 2:
         S = H
         D = multiplicarMatrices(H, multiplicarMatrices(A, traspuesta(H)))
@@ -391,13 +396,14 @@ def diagRH(A,tol=1e-15,K=1e5):
         B = multiplicarMatrices(H, multiplicarMatrices(A, traspuesta(H)))
         A_mon = B[1:, 1:]
         S_mon, D_mon = diagRH(A_mon, tol, K)
-        D = np.eye(len(A))
+        D = np.zeros((len(A),len(A)))
         D[0][0] = lamda
         D[1:, 1:] = D_mon
         S1 = np.eye(len(A))
         S1[1:, 1:] = S_mon
         S = multiplicarMatrices(H, S1)    
     return S, D
+
 
 '''
 #con este test deberia ser none porque te dicen que GS esta definido solo para cuadradas
