@@ -251,7 +251,7 @@ def esSimetrica(A,tol=1e-10):
         i = 0
         while simetrica and i < f:
             for j in range(c):
-                simetrica = simetrica and abs(A[i,j] - T[i,j]) < tol
+                simetrica = simetrica and np.isclose(A[i,j], T[i,j], tol)
             i += 1
     else:
         simetrica = False
@@ -373,7 +373,6 @@ def metpot2k(A,tol=1e-15,K=1000):
     lamda = producto_interno(v_m, Av_m)
     error = e - 1
     return v_m, lamda, k
-
 
 def diagRH(A,tol=1e-15,K=1000):
     if not esSimetrica(A, tol):
