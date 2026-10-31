@@ -378,8 +378,8 @@ def diagRH(A,tol=1e-15,K=1000):
     if not esSimetrica(A, tol):
         return None, None
     v, lamda, k = metpot2k(A, tol, K)
-    if lamda<tol:
-        return np.zeros((len(A),len(A))), np.zeros((len(A),len(A)))
+    if abs(lamda)<tol:
+        return np.eye(len(A)), np.zeros((len(A), len(A)))
     I = np.eye(len(A))
     u = I[0].copy()
     u -= v
