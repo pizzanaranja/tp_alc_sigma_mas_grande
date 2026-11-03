@@ -9,37 +9,36 @@ def error_relativo(x,y):
     return abs(error(x,y)) / abs(np.float64(x))
 '''Recibe dos numeros x e y, y calcula el error relativo de aproximar x usando y en float64'''
 
-
-# VERSION QUE USA NP.ISCLOSE PERO NO RECIBE PARAMETRO TOL    
-# def matricesIguales(A, B):
-#     iguales = True
-#     f,c = A.shape
-#     if len(A) != len(B) or len(A[0]) != len(B[0]):
-#         iguales = False
-#     else:
-#         i = 0
-#         while iguales and i < f:
-#             for j in range(c):
-#                 iguales = iguales and np.isclose(A[i][j], B[i][j])
-#             i += 1
-#     return iguales
-
-#version sin np.isclose pero usa tol, se puede?
-def matricesIguales(A, B, tol=1e-8):
-    # un vector (n,) pasa a columna (n,1); una matriz queda igual
-    A = A.reshape((len(A), -1))
-    B = B.reshape((len(B), -1))
+   
+def matricesIguales(A, B):
+    iguales = True
+    f,c = A.shape
     if len(A) != len(B) or len(A[0]) != len(B[0]):
         iguales = False
-    for i in range(len(A)):
-        for j in range(len(A[0])):
-            if abs(A[i,j])<tol:
-                diferencia = error(A[i,j],B[i,j])
-            else:
-                diferencia = error_relativo(A[i,j],B[i,j])
-            if diferencia > tol:
-                return False
-    return True
+    else:
+        i = 0
+        while iguales and i < f:
+            for j in range(c):
+                iguales = iguales and np.isclose(A[i][j], B[i][j])
+            i += 1
+    return iguales
+
+# #version sin np.isclose pero usa tol, se puede?
+# def matricesIguales(A, B, tol=1e-8):
+#     # un vector (n,) pasa a columna (n,1); una matriz queda igual
+#     A = A.reshape((len(A), -1))
+#     B = B.reshape((len(B), -1))
+#     if len(A) != len(B) or len(A[0]) != len(B[0]):
+#         iguales = False
+#     for i in range(len(A)):
+#         for j in range(len(A[0])):
+#             if abs(A[i,j])<tol:
+#                 diferencia = error(A[i,j],B[i,j])
+#             else:
+#                 diferencia = error_relativo(A[i,j],B[i,j])
+#             if diferencia > tol:
+#                 return False
+#     return True
 
 def rota(theta):
     a = np.cos(theta)
@@ -270,7 +269,7 @@ def esSimetrica(A,tol=1e-10):
         i = 0
         while simetrica and i < f:
             for j in range(c):
-                simetrica = simetrica and abs(A[i,j] - T[i,j]) < tol #saqué el np.isclose porque no está permitido, vuelvo a la version anterior
+                simetrica = simetrica and np.isclose(A[i,j],T[i,j],tol) 
             i += 1
     else:
         simetrica = False
@@ -379,7 +378,7 @@ def f_A(A, v, k):
     return w
 
 def metpot2k(A,tol=1e-15,K=1000):
-    v = np.random.randn(len(A))
+    v = np.random.uniform(-1,1,len(A))
     v_m = f_A(A,v,2)
     e = producto_interno(v_m, v)
     k = 1 #preguntar criterio!!
@@ -413,10 +412,6 @@ def diagRH(A,tol=1e-15,K=1000):
     else:
         B = multiplicarMatrices(H, multiplicarMatrices(A, traspuesta(H)))
         A_mon = B[1:, 1:]
-        #sabemos que en la teoría A_mon es simétrica, pero por cuestiones númericas 
-        # la escala de error computacional crece demasiado y no pasa los test de esSimetrica, 
-        # para corregir esto vamos a forzar su simetría con la siguiente fórmula:
-        A_mon = (A_mon + traspuesta(A_mon)) / 2
         S_mon, D_mon = diagRH(A_mon, tol, K)
         D = np.zeros((len(A),len(A)))
         D[0][0] = lamda
