@@ -23,11 +23,14 @@ def obtenerQ3d(imgPts,objPts):
     return Q
 
 def resolverDLT3D(Q):
-    S,D = diagRH(multiplicarMatrices(Q.T,Q),1e-10)
+    S, _ = diagRH(multiplicarMatrices(Q.T,Q),1e-10)
     m = S[:,11] # 12x1, M 3x4
     M = m.reshape(3,4)
     return M
 
+
+## el determinante de R tiene que ser 1 para que R sea matriz de rotacion, si da -1 es una rotoreflexion (pose imposible para una camara)
+## pensamos poner pops como una lista con esos requisitos y leerla adentro de la funcion
 def devolverMatricesCalibracion3d(M, condiciones_opc = None): #chequear este parametro, pueden ser 2 parametros, etc. Libertad. 
     """
     condiciones_opc:
@@ -45,9 +48,9 @@ def devolverMatricesCalibracion3d(M, condiciones_opc = None): #chequear este par
         if K[i,i]<0:
             K[:,i] = -K[:,i] #columna de K
             #una vez que cambiamos esto, para que den las cuentas tambien hay que 
-            # cambiarlo en R. KR hace fila de K por columna de R. 
+            #cambiarlo en R. KR hace fila de K por columna de R. 
             R[i,:] = -R[i,:] #fila de R
-    elem = K[2,2]
+    #elem = K[2,2]
     if condiciones_opc == "ambas":
         K[0,1] = 0
         prom = (K[0,0] + K[1,1])/2
@@ -61,18 +64,22 @@ def devolverMatricesCalibracion3d(M, condiciones_opc = None): #chequear este par
         K[0,1] = 0 #chequear si esta bien imponer esto asi nomas o se hace modificando M!!!!!!!
     
     t = multiplicarAx(inversa(K), Kt)
-    #normalizamos K
-    K[:, :] = K[:, :]/K[2,2] 
-    #chequeamos si me quedó la versión esperada o espejada, según el signo del vector aleatorio usado en matpot2k para generar M, queremos que R sea de rotacion, o sea con det=1
-    #calculamos determinante de una matriz 3x3, desarrollando por la primera fila:
-    det_R = (R[0,0]*(R[1,1]*R[2,2] - R[1,2]*R[2,1])
-          - R[0,1]*(R[1,0]*R[2,2] - R[1,2]*R[2,0])
-          + R[0,2]*(R[1,0]*R[2,1] - R[1,1]*R[2,0]))
+    
+    K[:, :] = K[:, :]/K[2,2] #normalizamos K
+    #chequeamos si me quedó la versión esperada o espejada, según el signo del vector aleatorio (random uniform) usado en matpot2k para generar M, queremos que R sea de rotacion, o sea con det=1
+    det_R = determinante3x3(R)
     if det_R < 0: #caso R reflexion, corregimos para que sea rotacion
         R = -R
         t = -t
-        elem = -elem
+        #elem = -elem
     return R, t, K
+
+def determinante3x3(A):
+    #desarrollando por la primera fila:
+    det_A = (A[0,0]*(A[1,1]*A[2,2] - A[1,2]*A[2,1])
+          - A[0,1]*(A[1,0]*A[2,2] - A[1,2]*A[2,0])
+          + A[0,2]*(A[1,0]*A[2,1] - A[1,1]*A[2,0]))
+    return det_A
 
 
 # EJERCICIO 3
@@ -108,6 +115,19 @@ def armar_Hs (img_pts,obj_pts):
         H = H / H[2, 2]  # Normalizar escala
         Hlst.append(H)
     return Hlst
+
+def estimar_H(vista,obj_pts):
+    # 1. Matriz Q de la vista actual
+    Q = obtenerQ2d(vista, obj_pts)
+
+    # 2. Resolver Qh = 0 con autovalores/SVD de ALC
+    QtQ = multiplicarMatrices(Q.T, Q)
+    S, D = diagRH(QtQ, 1e-08)
+
+    h = S[:, -1]  # Autovector del menor autovalor
+    H = h.reshape(3, 3)
+    H = H / H[2, 2]  # Normalizar escala
+    return H
 
 def armarV(x, y):
     v = np.array([x[0]*y[0],
@@ -153,13 +173,14 @@ def calcularMatrizK2D(A, skew=False):
     else:
         S, _ = diagRH(multiplicarMatrices(A.T, A))
         b = S[:, 5] #A es de 2nx6, AtA es de 6x6
-        B = np.array([[b[0], b[1], b[3]],
-                    [b[1], b[2], b[4]],
-                    [b[3], b[4], b[5]]])
+    
+    B = np.array([[b[0], b[1], b[3]],
+                [b[1], b[2], b[4]],
+                [b[3], b[4], b[5]]])
 
     #para que sea definida positiva la diagonal tiene que serlo
-        if B[0][0] < 0:
-            B = -B
+    if B[0][0] < 0:
+        B = -B
 
     L = calculaCholesky(B)
     K = inversa(L.T)
