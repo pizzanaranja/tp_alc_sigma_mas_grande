@@ -103,16 +103,7 @@ def obtenerQ2d(imgPts,objPts):
 def armar_Hs (img_pts,obj_pts):
     Hlst = []
     for i in img_pts:
-    # 1. Matriz Q de la vista actual
-        Q = obtenerQ2d(i, obj_pts)
-
-    # 2. Resolver Qh = 0 con autovalores/SVD de ALC
-        QtQ = multiplicarMatrices(Q.T, Q)
-        S, D = diagRH(QtQ, 1e-08)
-
-        h = S[:, -1]  # Autovector del menor autovalor
-        H = h.reshape(3, 3)
-        H = H / H[2, 2]  # Normalizar escala
+        H = estimar_H(i, obj_pts)
         Hlst.append(H)
     return Hlst
 
@@ -151,28 +142,9 @@ def armarA(Hlst):
         A[2*i + 1] = a2
     return A
 
-def calcularMatrizK2D(A, skew=False):
-    if not skew:
-    # 1. Eliminamos la columna 1 de A (asociada a B12) -> Queda dimensión (2n x 5)
-        A_red = np.hstack([A[:, 0:1], A[:, 2:6]])
-
-    # 2. Mínimos cuadrados homogéneos en 5 variables: A_red * b_red = 0
-        AtA_red = multiplicarMatrices(A_red.T, A_red)
-        S, _ = diagRH(AtA_red)
-
-    # El menor autovalor está en la última columna (índice 4 porque es 5x5)
-        b_red = S[:, 4]
-
-    # 3. Reinsertamos b1 = 0 en su posición original
-    # b = [B11, B12=0, B22, B13, B23, B33]
-        b = np.array(
-            [b_red[0], 0.0, b_red[1], b_red[2], b_red[3], b_red[4]],
-            dtype=np.float32,
-        )
-
-    else:
-        S, _ = diagRH(multiplicarMatrices(A.T, A))
-        b = S[:, 5] #A es de 2nx6, AtA es de 6x6
+def calcularMatrizK2D(A):
+    S, _ = diagRH(multiplicarMatrices(A.T, A))
+    b = S[:, 5] #A es de 2nx6, AtA es de 6x6
     
     B = np.array([[b[0], b[1], b[3]],
                 [b[1], b[2], b[4]],
