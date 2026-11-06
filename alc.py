@@ -645,3 +645,33 @@ def obtener_matriz_normalizacion(pts):
     
     return T
 
+def pasar_a_real(pxs, Hinv):
+    puntos = []
+
+    for pixel in pxs:
+        pix = [pixel[0], pixel[1], 1]
+        punto = multiplicarAx(Hinv, pix)
+        punto = punto/punto[2]
+        puntos.append(punto)
+    
+    return puntos
+
+def calcularVelocidades(posiciones, tiempos):
+    velocidades = []
+    for i in range(len(posiciones)-1):
+
+        # Diferencia de posiciones
+        desplazamiento = posiciones[i+1] - posiciones[i]
+
+        # Distancia recorrida en metros
+        distancia = np.linalg.norm(desplazamiento)
+
+        # Diferencia temporal en segundos
+        dt = tiempos[i+1] - tiempos[i]
+
+        # Velocidad en m/s
+        velocidad = distancia / dt
+
+        velocidades.append(velocidad)
+
+    return np.array(velocidades)
