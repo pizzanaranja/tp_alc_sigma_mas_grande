@@ -1,5 +1,6 @@
 # FUNCIONES PEDIDAS EN EL TP
 import numpy as np
+import pandas as pd
 from alc import diagRH, multiplicarMatrices, calculaQR, inversa, multiplicarAx, norma, calculaCholesky
 
 # EJERCICIO 2
@@ -185,8 +186,57 @@ def obtenerPose2D(Hj, K):
 
     return Rj, tj
 
+## EJERCICIO 4
 def circulo (centro, radio = 1.0, n= 100):
     angulos = 2*np.pi*np.arange(n+1)/n
     U = centro[0] + radio*np.cos(angulos)
     V = centro[1] + radio*np.sin(angulos)
     return U,V #devuelve lista de coordenadas de los puntos del circulo en mundo real
+
+## EJERCICIO 5
+def recuperarPares(csv_path):
+    print(csv_path)
+    df = pd.read_csv(csv_path, sep=';', engine="python")
+    object_single = df[["X", "Y", "Z"]].to_numpy(dtype=np.float32)
+
+    obj_points = []
+    img_points = []
+
+    for i in range(4):
+        image_single = df[[f"u_{i}", f"v_{i}"]].to_numpy(dtype=np.float32)
+
+        obj_points.append(object_single.copy())
+        img_points.append(image_single.copy())
+
+    return obj_points, img_points
+
+def obtener_matriz_normalizacion(pts):
+    """
+    Calcula la matriz de normalización isotrópica 3x3 para un conjunto de puntos 2D.
+    Centra los puntos en el origen y escala para que la distancia RMS al origen sea sqrt(2).
+    """
+    pts = np.array(pts).reshape(-1, 2)
+    n = len(pts)
+    
+    # 1. Centroide de los puntos
+    media = np.mean(pts, axis=0)
+    
+    # 2. Trasladar al origen y calcular distancia media RMS
+    pts_centrados = pts - media
+    distancias = np.sqrt(np.sum(pts_centrados**2, axis=1))
+    media_distancia = np.mean(distancias)
+    
+    if media_distancia == 0:
+        s = 1.0
+    else:
+        s = np.sqrt(2) / media_distancia
+    
+    # 3. Construir matriz T de normalización (3x3)
+    T = np.array([
+        [s, 0, -s * media[0]],
+        [0, s, -s * media[1]],
+        [0, 0, 1]
+    ], dtype=float)
+    
+    return T
+
