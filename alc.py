@@ -45,7 +45,7 @@ def rota_y_escala(theta,s):
 def afin(theta,s,b):
     T2 = escala(s)
     T1 = rota(theta)
-    A = T2@T1
+    A = multiplicarMatrices(T2, T1)
     B = np.zeros((3,3))
     for i in range(2):
         B[i][:2] = A[i]
@@ -56,7 +56,7 @@ def afin(theta,s,b):
 def trans_afin(v,theta,s,b):
     A = afin(theta,s,b)
     v1 = np.array([v[0],v[1],1])
-    w = A@v1
+    w = multiplicarMatrices(A, v1)
     return w[:2]
 
 def norma(x,p):
@@ -87,7 +87,7 @@ def normaMatMC(A,q,p,Np):
     max = []
     norm = 0
     for vector in normalizados:
-        norma_matriz = norma(A@vector,q)
+        norma_matriz = norma(multiplicarMatrices(A, vector),q)
         if norma_matriz > norm:
             norm = norma_matriz
             max = vector
@@ -506,25 +506,80 @@ def obtenerQ2d(imgPts,objPts):
         Q[2*i+1,8] = -v_i
     return Q
 
+def obtener_matriz_normalizacion(pts):
+    """
+    Calcula la matriz de normalización isotrópica 3x3 para un conjunto de puntos 2D.
+    Centra los puntos en el origen y escala para que la distancia RMS al origen sea sqrt(2).
+    """
+    pts = np.array(pts).reshape(-1, 2)
+    n = len(pts)
+    
+    # 1. Centroide de los puntos
+    media = np.mean(pts, axis=0)
+    
+    # 2. Trasladar al origen y calcular distancia media RMS
+    pts_centrados = pts - media
+    distancias = np.sqrt(np.sum(pts_centrados**2, axis=1))
+    media_distancia = np.mean(distancias)
+    
+    if media_distancia == 0:
+        s = 1.0
+    else:
+        s = np.sqrt(2) / media_distancia
+    
+    # 3. Construir matriz T de normalización (3x3)
+    T = np.array([
+        [s, 0, -s * media[0]],
+        [0, s, -s * media[1]],
+        [0, 0, 1]
+    ], dtype=float)
+    
+    return T
+
+def normalizar_puntos(pts, T):
+    """Aplica la matriz T a un conjunto de puntos (N, 2) convirtiéndolos a coordenadas homogéneas."""
+    pts = np.array(pts).reshape(-1, 2)
+    n = len(pts)
+    pts_h = np.hstack([pts, np.ones((n, 1))]) # (N, 3)
+    pts_norm_h = (multiplicarMatrices(T, pts_h.T)).T
+    return pts_norm_h[:, :2] # Devolvemos formato (N, 2) aplanable o utilizable
+
+def estimar_H(vista, obj_pts):
+
+    vista_arr = np.array(vista).reshape(-1, 2)
+    obj_arr = np.array(obj_pts).reshape(-1, 2)
+
+    T_img = obtener_matriz_normalizacion(vista_arr)
+    T_world = obtener_matriz_normalizacion(obj_arr)
+
+    vista_norm = normalizar_puntos(vista_arr, T_img).flatten()
+
+    obj_norm_2d = normalizar_puntos(obj_arr, T_world)
+
+    # IMPORTANTE: NO aplanar obj_norm
+    obj_norm = obj_norm_2d
+
+    Q = obtenerQ2d(vista_norm, obj_norm)
+
+    QtQ = multiplicarMatrices(Q.T, Q)
+    S, D = diagRH(QtQ, 1e-08)
+
+    h = S[:, -1]
+    H_norm = h.reshape(3, 3)
+    H_norm = H_norm / H_norm[2, 2]
+
+    H = multiplicarMatrices(inversa(T_img), H_norm)
+    H = multiplicarMatrices(H, T_world)
+    H = H / H[2, 2]
+
+    return H
+
 def armar_Hs (img_pts,obj_pts):
     Hlst = []
     for i in img_pts:
         H = estimar_H(i, obj_pts)
         Hlst.append(H)
     return Hlst
-
-def estimar_H(vista,obj_pts):
-    # 1. Matriz Q de la vista actual
-    Q = obtenerQ2d(vista, obj_pts)
-
-    # 2. Resolver Qh = 0 con autovalores/SVD de ALC
-    QtQ = multiplicarMatrices(Q.T, Q)
-    S, D = diagRH(QtQ, 1e-08)
-
-    h = S[:, -1]  # Autovector del menor autovalor
-    H = h.reshape(3, 3)
-    H = H / H[2, 2]  # Normalizar escala
-    return H
 
 def armarV(x, y):
     v = np.array([x[0]*y[0],
@@ -600,7 +655,6 @@ def circulo (centro, radio = 1.0, n= 100):
 
 ## EJERCICIO 5
 def recuperarPares(csv_path):
-    print(csv_path)
     df = pd.read_csv(csv_path, sep=';', engine="python")
     object_single = df[["X", "Y", "Z"]].to_numpy(dtype=np.float32)
 
@@ -614,36 +668,6 @@ def recuperarPares(csv_path):
         img_points.append(image_single.copy())
 
     return obj_points, img_points
-
-def obtener_matriz_normalizacion(pts):
-    """
-    Calcula la matriz de normalización isotrópica 3x3 para un conjunto de puntos 2D.
-    Centra los puntos en el origen y escala para que la distancia RMS al origen sea sqrt(2).
-    """
-    pts = np.array(pts).reshape(-1, 2)
-    n = len(pts)
-    
-    # 1. Centroide de los puntos
-    media = np.mean(pts, axis=0)
-    
-    # 2. Trasladar al origen y calcular distancia media RMS
-    pts_centrados = pts - media
-    distancias = np.sqrt(np.sum(pts_centrados**2, axis=1))
-    media_distancia = np.mean(distancias)
-    
-    if media_distancia == 0:
-        s = 1.0
-    else:
-        s = np.sqrt(2) / media_distancia
-    
-    # 3. Construir matriz T de normalización (3x3)
-    T = np.array([
-        [s, 0, -s * media[0]],
-        [0, s, -s * media[1]],
-        [0, 0, 1]
-    ], dtype=float)
-    
-    return T
 
 def pasar_a_real(pxs, Hinv):
     puntos = []
