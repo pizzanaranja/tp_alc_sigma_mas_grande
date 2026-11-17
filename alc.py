@@ -633,7 +633,8 @@ def obtenerPose2D(Hj, K):
     lamda = 1/norma(columnasKiH[0],2)
     
     r1 = lamda*columnasKiH[0]
-    r2 = lamda*columnasKiH[1]
+    v2 = lamda*columnasKiH[1]
+    r2 = v2 - producto_interno(r1,v2)*r1/norma(r1,2)**2
 
     tj = lamda*columnasKiH[2]
 
