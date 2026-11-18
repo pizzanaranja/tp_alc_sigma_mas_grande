@@ -471,6 +471,7 @@ def devolverMatricesCalibracion3d(M, condiciones_opc = None): #chequear este par
     
     t = multiplicarAx(inversa(K), Kt)
     
+    t = t/K[2,2] #normalizamos t
     K[:, :] = K[:, :]/K[2,2] #normalizamos K
     #chequeamos si me quedó la versión esperada o espejada, según el signo del vector aleatorio (random uniform) usado en matpot2k para generar M, queremos que R sea de rotacion, o sea con det=1
     det_R = determinante3x3(R)
