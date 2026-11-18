@@ -447,7 +447,7 @@ def devolverMatricesCalibracion3d(M, condiciones_opc = None): #chequear este par
     """
     KR = M[:, :3]
     Kt = M[:, 3]
-    Q, R_mono = calculaQR(inversa(KR))
+    Q, R_mono = calculaQR(inversa(KR),"GS") #usamos GS que garantiza diagonal de R positiva
     R = Q.T
     K = inversa(R_mono)
     for i in range(3): #nos aseguramos diagonal>0 en K
