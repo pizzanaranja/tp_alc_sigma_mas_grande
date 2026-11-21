@@ -655,6 +655,11 @@ def circulo (centro, radio = 1.0, n= 100):
     V = centro[1] + radio*np.sin(angulos)
     return U,V #devuelve lista de coordenadas de los puntos del circulo en mundo real
 
+def metros_a_pixeles_plano(X_m, Y_m):
+    u = 176 + (X_m / 105.0) * (1136 - 176)
+    v = 727 - (Y_m / 68.0) * (727 - 111)  # se resta porque el eje Y en imágenes crece hacia abajo
+    return u, v
+
 ## EJERCICIO 5
 def recuperarPares(csv_path):
     df = pd.read_csv(csv_path, sep=';', engine="python")
@@ -701,3 +706,37 @@ def calcularVelocidades(posiciones, tiempos):
         velocidades.append(velocidad)
 
     return np.array(velocidades)
+
+## EJERCICIO 6
+def calculoLambdaMu(I0, J0):
+    norma_I0 = norma(I0, 2)
+    norma_J0 = norma(J0, 2)
+    real = norma_J0**2 - norma_I0**2
+    imag = -2*producto_interno(I0, J0)
+    C_cuadrado = complex(real, imag)
+
+    C1 = C_cuadrado**(1/2)
+    C2 = -C1
+
+    lambda1, mu1 = C1.real, C1.imag
+    lambda2, mu2 = C2.real, C2.imag
+
+    return (lambda1, mu1), (lambda2, mu2)
+
+def calcularSalidaPOSIT(Is, Js, fx, m0, M0):
+    i = Is/norma(Is, 2)
+    j = Js/norma(Js, 2)
+    k = productoCruz(i, j)
+    
+    R = np.array([i, j, k])
+
+    Z0 = fx/norma(Is, 2)
+    X0 = (Z0/fx)*m0[0]
+    Y0 = (Z0/fx)*m0[1]
+
+    t = np.array([X0, Y0, Z0])
+    #t = M0
+    #Z0 = t[2]
+    # deberia ser lo mismo calcularlo de una forma u otra
+    return i, j, k, Z0, R, t
+
