@@ -740,3 +740,30 @@ def calcularSalidaPOSIT(Is, Js, fx, m0, M0):
     # deberia ser lo mismo calcularlo de una forma u otra
     return i, j, k, Z0, R, t
 
+def evaluarPose(R,t, obj_vecs, img_vecs, K):
+    img_vecs = np.hstack((img_vecs, np.ones((img_vecs.shape[0], 1)))) #agregamos coordenada homogénea
+    suma_errores = 0
+    proyecciones_validas = 0
+
+    proyecciones = multiplicarMatrices(R, obj_vecs.T) + t.reshape(3,1)
+
+    for i in range(proyecciones.shape[1]):
+        proyeccion = proyecciones[:, i]
+        if proyeccion[2] > 0:
+            proyecciones_validas += 1
+
+            reproyeccion = multiplicarAx(K, proyeccion)
+            reproyeccion = reproyeccion/reproyeccion[2] #normalizamos a coordenadas de pixel
+            error = img_vecs[:, i] - reproyeccion
+            norma_error = norma(error, 2)
+            suma_errores += (norma_error**2)
+
+    if proyecciones_validas > 0:
+        RMS = ((1/proyecciones_validas)*suma_errores)**(1/2)
+    else:
+        RMS = float('inf')
+    return proyecciones_validas, RMS
+
+def aplicarPOSIT(obj_vecs, img_vecs, K, MaxIt, atol):
+    
+    return R, t
