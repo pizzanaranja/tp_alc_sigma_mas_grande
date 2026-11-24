@@ -406,6 +406,55 @@ def diagRH(A,tol=1e-15,K=1000):
         S = multiplicarMatrices(H, S1)    
     return S, D
 
+def svd_reducida(A,k="max",tol=1e-8):
+    m , n = A.shape
+    A_t = traspuesta(A)
+    if (m<n):
+        M = multiplicarMatrices(A,A_t)
+    else:
+        M = multiplicarMatrices(A_t,A)
+    avec, aval = diagRH(M)
+    aval_no_nulos = []
+    i=0
+    while i< aval.shape[0] and aval[i,i]>tol**2:
+        aval_no_nulos.append(aval[i,i]**(1/2))
+        i+=1
+    r = len(aval_no_nulos)
+    if(k=="max"):
+        k=r
+    p = min(k,r)
+    hat_Sig = np.zeros(p) #se podria cortar diag hasta p
+    for i in range (p): 
+        hat_Sig[i]=aval_no_nulos[i]
+    if (m<n):
+        hat_U = np.zeros((m,p))
+        hat_V = np.zeros((n,p))
+        for i in range(p):
+            hat_U[:,i]= avec[:,i]
+            hat_V[:,i] = multiplicarAx(A_t,hat_U[:,i]) / hat_Sig[i]
+    else:
+        hat_U = np.zeros((m,p))
+        hat_V = np.zeros((n,p))
+        for i in range(p):
+            hat_V[:,i]= avec[:,i]
+            hat_U[:,i] = multiplicarAx(A,hat_V[:,i]) / hat_Sig[i]
+
+    return hat_U, hat_Sig, hat_V
+
+def pseudoinversaSVD(A, tol=1e-8):
+    U, S, V = svd_reducida(A)
+    k = len(S)
+    if k == 0 :
+        return np.zeros((A.shape[1],A.shape[0]))
+
+    #invertimos los valores singulares no nulos
+    S_max = np.max(S)
+    S_inv = np.zeros(k)
+    for i in range(k):
+        if S[i] > tol * S_max:
+            S_inv[i] = 1 / S[i]
+
+    return multiplicarMatrices(V * S_inv, traspuesta(U))
 
 ## FUNCIONES TP
 # EJERCICIO 2
@@ -710,55 +759,6 @@ def calcularVelocidades(posiciones, tiempos):
 
     return np.array(velocidades)
 
-def svd_reducida(A,k="max",tol=1e-8):
-    m , n = A.shape
-    A_t = traspuesta(A)
-    if (m<n):
-        M = multiplicarMatrices(A,A_t)
-    else:
-        M = multiplicarMatrices(A_t,A)
-    avec, aval = diagRH(M)
-    aval_no_nulos = []
-    i=0
-    while i< aval.shape[0] and aval[i,i]>tol**2:
-        aval_no_nulos.append(aval[i,i]**(1/2))
-        i+=1
-    r = len(aval_no_nulos)
-    if(k=="max"):
-        k=r
-    p = min(k,r)
-    hat_Sig = np.zeros(p) #se podria cortar diag hasta p
-    for i in range (p): 
-        hat_Sig[i]=aval_no_nulos[i]
-    if (m<n):
-        hat_U = np.zeros((m,p))
-        hat_V = np.zeros((n,p))
-        for i in range(p):
-            hat_U[:,i]= avec[:,i]
-            hat_V[:,i] = multiplicarAx(A_t,hat_U[:,i]) / hat_Sig[i]
-    else:
-        hat_U = np.zeros((m,p))
-        hat_V = np.zeros((n,p))
-        for i in range(p):
-            hat_V[:,i]= avec[:,i]
-            hat_U[:,i] = multiplicarAx(A,hat_V[:,i]) / hat_Sig[i]
-
-    return hat_U, hat_Sig, hat_V
-
-def pseudoinversaSVD(A, tol=1e-8):
-    U, S, V = svd_reducida(A)
-    k = len(S)
-    if k == 0 :
-        return np.zeros((A.shape[1],A.shape[0]))
-
-    #invertimos los valores singulares no nulos
-    S_max = np.max(S)
-    S_inv = np.zeros(k)
-    for i in range(k):
-        if S[i] > tol * S_max:
-            S_inv[i] = 1 / S[i]
-
-    return multiplicarMatrices(V * S_inv, traspuesta(U))
 
 ## EJERCICIO 6
 def calculoLambdaMu(I0, J0):
