@@ -338,7 +338,7 @@ def calculaQR(A,metodo='RH',tol=1e-12):
     return Q, R
 
 def multiplicarAx(A,x):
-    Ax = np.zeros(len(x))
+    Ax = np.zeros(len(A))
     for i in range(len(A)):
         sum = 0
         for j in range(len(x)):
@@ -429,7 +429,7 @@ def obtenerQ3d(imgPts,objPts):
     return Q
 
 def resolverDLT3D(Q):
-    S, _ = diagRH(multiplicarMatrices(Q.T,Q),1e-10)
+    S, _ = diagRH(multiplicarMatrices(Q.T,Q),1e-8)
     m = S[:,11] # 12x1, M 3x4
     M = m.reshape(3,4)
     return M
@@ -710,6 +710,56 @@ def calcularVelocidades(posiciones, tiempos):
 
     return np.array(velocidades)
 
+def svd_reducida(A,k="max",tol=1e-8):
+    m , n = A.shape
+    A_t = traspuesta(A)
+    if (m<n):
+        M = multiplicarMatrices(A,A_t)
+    else:
+        M = multiplicarMatrices(A_t,A)
+    avec, aval = diagRH(M)
+    aval_no_nulos = []
+    i=0
+    while i< aval.shape[0] and aval[i,i]>tol**2:
+        aval_no_nulos.append(aval[i,i]**(1/2))
+        i+=1
+    r = len(aval_no_nulos)
+    if(k=="max"):
+        k=r
+    p = min(k,r)
+    hat_Sig = np.zeros(p) #se podria cortar diag hasta p
+    for i in range (p): 
+        hat_Sig[i]=aval_no_nulos[i]
+    if (m<n):
+        hat_U = np.zeros((m,p))
+        hat_V = np.zeros((n,p))
+        for i in range(p):
+            hat_U[:,i]= avec[:,i]
+            hat_V[:,i] = multiplicarAx(A_t,hat_U[:,i]) / hat_Sig[i]
+    else:
+        hat_U = np.zeros((m,p))
+        hat_V = np.zeros((n,p))
+        for i in range(p):
+            hat_V[:,i]= avec[:,i]
+            hat_U[:,i] = multiplicarAx(A,hat_V[:,i]) / hat_Sig[i]
+
+    return hat_U, hat_Sig, hat_V
+
+def pseudoinversaSVD(A, tol=1e-8):
+    U, S, V = svd_reducida(A)
+    k = len(S)
+    if k == 0 :
+        return np.zeros((A.shape[1],A.shape[0]))
+
+    #invertimos los valores singulares no nulos
+    S_max = np.max(S)
+    S_inv = np.zeros(k)
+    for i in range(k):
+        if S[i] > tol * S_max:
+            S_inv[i] = 1 / S[i]
+
+    return multiplicarMatrices(V * S_inv, traspuesta(U))
+
 ## EJERCICIO 6
 def calculoLambdaMu(I0, J0):
     norma_I0 = norma(I0, 2)
@@ -741,7 +791,7 @@ def calcularSalidaPOSIT(Is, Js, fx, m0, M0):
     #t = M0
     #Z0 = t[2]
     # deberia ser lo mismo calcularlo de una forma u otra
-    return i, j, k, Z0, R, t
+    return i, j, k, Z0, R, t #t=M0
 
 def evaluarPose(R,t, obj_vecs, img_vecs, K):
     img_vecs = np.hstack((img_vecs, np.ones((img_vecs.shape[0], 1)))) #agregamos coordenada homogénea
@@ -757,7 +807,7 @@ def evaluarPose(R,t, obj_vecs, img_vecs, K):
 
             reproyeccion = multiplicarAx(K, proyeccion)
             reproyeccion = reproyeccion/reproyeccion[2] #normalizamos a coordenadas de pixel
-            error = img_vecs[:, i] - reproyeccion
+            error = img_vecs[i,:] - reproyeccion #corregimos, antes decia img_vecs[:, i] 
             norma_error = norma(error, 2)
             suma_errores += (norma_error**2)
 
@@ -768,5 +818,67 @@ def evaluarPose(R,t, obj_vecs, img_vecs, K):
     return proyecciones_validas, RMS
 
 def aplicarPOSIT(obj_vecs, img_vecs, K, MaxIt, atol):
-    
-    return R, t
+    n = obj_vecs.shape[0]
+    alpha_u = K[0, 0]
+    u_0, v_0 = K[0, 2], K[1, 2]
+
+    # M0 es el primer punto
+    # a_i = M_i - M0
+    M0 = obj_vecs[0]
+    a = obj_vecs - M0
+
+    # centramos coord imagen
+    x = img_vecs[:, 0] - u_0
+    y = img_vecs[:, 1] - v_0
+    m0 = np.array([x[0], y[0]])
+
+    # Normal al plano y pseudoinversa
+    normal = np.array([0.0, 0.0, 1.0])
+    A_pinv = pseudoinversaSVD(a) #cambiar cuando tengamos SVD!!
+
+
+    eps = np.zeros(n)               #inicializamos epsilon 
+    rms_prev = float('inf')
+    rms_mejor = float('inf')
+    R_mejor, t_mejor = None, None # con esto iremos comparando resultados en las iteraciones
+
+    it = 0
+    seguir = True #asi no tenemos que meter breaks
+    while it < MaxIt and seguir:
+        # resolvemos A I = b_u y A J = b_v con los eps actuales
+        b_u = x*(1 + eps) - x[0]
+        b_v = y*(1 + eps) - y[0]
+        I0 = multiplicarAx(A_pinv, b_u)
+        J0 = multiplicarAx(A_pinv, b_v)
+
+        # nos quedamos con la solucion valida de menor RMS
+        mejor_cand = None
+        for (lam, mu) in calculoLambdaMu(I0, J0):
+            Is = I0 + lam*normal
+            Js = J0 + mu*normal
+            i, j, k, Z0, R, t = calcularSalidaPOSIT(Is, Js, alpha_u, m0, M0)
+            validas, rms = evaluarPose(R, t, a, img_vecs, K)
+            if validas == n and (mejor_cand is None or rms < mejor_cand[0]):
+                mejor_cand = (rms, R, t, k, Z0)
+
+        if mejor_cand is None:      # ninguna solucion tiene todos los puntos adelante
+            seguir = False
+        else:
+            rms, R, t, k, Z0 = mejor_cand
+
+            # Guardamos la mejor pose hasta ahora
+            if rms < rms_mejor:
+                rms_mejor, R_mejor, t_mejor = rms, R, t
+
+            # el RMS casi no cambia respecto de la iteracion anterior, dejamos de iterar
+            if abs(rms_prev - rms) < atol:
+                seguir = False
+            else:
+                rms_prev = rms
+
+                # Actualizamos epsilon
+                eps = multiplicarAx(a, k) / Z0
+        it += 1
+
+    return R_mejor, t_mejor
+
