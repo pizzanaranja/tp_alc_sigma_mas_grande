@@ -768,10 +768,10 @@ def calculoLambdaMu(I0, J0):
     imag = -2*producto_interno(I0, J0)
     C_cuadrado = complex(real, imag)
 
-    C1 = C_cuadrado**(1/2)
+    C1 = C_cuadrado**(1/2) # C1 y C2 son +- raiz de C^2
     C2 = -C1
-
-    lambda1, mu1 = C1.real, C1.imag
+    # lambda y mu son la parte real e imaginaria de la raiz
+    lambda1, mu1 = C1.real, C1.imag 
     lambda2, mu2 = C2.real, C2.imag
 
     return (lambda1, mu1), (lambda2, mu2)
@@ -798,11 +798,11 @@ def evaluarPose(R,t, obj_vecs, img_vecs, K):
     suma_errores = 0
     proyecciones_validas = 0
 
-    proyecciones = multiplicarMatrices(R, obj_vecs.T) + t.reshape(3,1)
+    proyecciones = multiplicarMatrices(R, obj_vecs.T) + t.reshape(3,1) #calculamos todas las proyecciones
 
     for i in range(proyecciones.shape[1]):
         proyeccion = proyecciones[:, i]
-        if proyeccion[2] > 0:
+        if proyeccion[2] > 0: #si Zi es mayor a cero y es valida la proyeccion
             proyecciones_validas += 1
 
             reproyeccion = multiplicarAx(K, proyeccion)
@@ -811,7 +811,7 @@ def evaluarPose(R,t, obj_vecs, img_vecs, K):
             norma_error = norma(error, 2)
             suma_errores += (norma_error**2)
 
-    if proyecciones_validas > 0:
+    if proyecciones_validas > 0: #para que no se rompa si no hay proyecciones validas
         RMS = ((1/proyecciones_validas)*suma_errores)**(1/2)
     else:
         RMS = float('inf')
